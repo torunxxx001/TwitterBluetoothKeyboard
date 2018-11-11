@@ -1,0 +1,54 @@
+<!DOCTYPE>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title>Twitter認証操作</title>
+		<script src="js/jquery-3.2.1.min.js"></script>
+		<script>
+			var ui_control = function(login_status){
+				$('#control-button').removeAttr('disabled');
+				
+				if(login_status){
+					$('#control-button').text('ログアウトする');
+					
+					$('#control-button').click(function(){
+						$.get('/logout', function(data){
+							var status = JSON.parse(data);
+							status = status['status'];
+							
+							if(status == 'ok'){
+								location.reload();
+							}else{
+								alert('ログアウトに失敗しました');
+							}
+						});
+					});
+				}else{
+					$('#control-button').text('ログインする');
+					
+					$('#control-button').click(function(){
+						location.href = '/auth/twitter';
+					});
+				}
+			};
+			
+			$(function(){
+				$.get('/get_login', function(data){
+					var stat = $.parseJSON(data);
+					
+					if(stat['login_status'] == true){
+						$('#login_status').text(stat['user'] + ' がログイン済');
+					}else{
+						$('#login_status').text('未ログイン');
+					}
+					
+					ui_control(stat['login_status']);
+				});
+			});
+		</script>
+	</head>
+	<body>
+		ログイン状態：<span id="login_status"></span><br><br>
+		<button id="control-button" disabled>ログイン</button>
+	</body>
+</html>

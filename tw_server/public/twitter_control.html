@@ -1,0 +1,263 @@
+<!DOCTYPE>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title>Twitter Control</title>
+		<script src="js/jquery-3.2.1.min.js"></script>
+		<script src="js/reconnecting-websocket.min.js"></script>
+		<script>
+			$(function(){
+				var ws = null;
+				
+				var stat_upd = function(){
+					if(ws != null && ws.readyState == 1){
+						ws.send('<!status!>');
+						ws.send('<!streaming_params!>');
+					}else{
+			  			$('#st-status').text('未接続');
+			  			$('#bt-status').text('未接続');
+			  			
+				  		$('#tw-follow-id-param').text('なし');
+				  		$('#tw-follow-name-param').text('なし');
+				  		$('#tw-track-param').text('なし');
+					}
+					
+					setTimeout(stat_upd, 1000);
+				};
+				
+				
+				ws = new ReconnectingWebSocket('ws://' + location.hostname + ':10630/');
+				
+				ws.onopen = function(){
+					$('#save-tw-params').removeAttr('disabled');
+					$('#streaming-connect').removeAttr('disabled');
+					$('#streaming-disconnect').removeAttr('disabled');
+					$('#tw-boot').attr('disabled', true);
+					$('#tw-exit').removeAttr('disabled');
+					$('#send-toggle-vk').removeAttr('disabled');
+					
+					$('#wsock-stat').text('接続済み');
+					
+					stat_upd();
+				};
+				ws.onclose = function(){
+					$('#save-tw-params').attr('disabled', true);
+					$('#streaming-connect').attr('disabled', true);
+					$('#streaming-disconnect').attr('disabled', true);
+					$('#tw-boot').removeAttr('disabled');
+					$('#tw-exit').attr('disabled', true);
+					$('#send-toggle-vk').attr('disabled', true);
+					
+				 	 $('#wsock-stat').text('未接続');
+				};
+				
+				ws.onerror = function (error) {
+					$('#save-tw-params').attr('disabled', true);
+					$('#streaming-reconnect').attr('disabled', true);
+					$('#tw-exit').attr('disabled', true);
+					
+					$('#wsock-stat').text('未接続');
+				};
+
+				ws.onmessage = function (e) {
+				  var resp = JSON.parse(e.data);
+				  
+				  if(resp.data_type == 'tweet'){
+				  	var user_name = resp.user_name + ' @' + resp.screen_name;
+				  	var image_url = resp.image;
+				  	var tweet = resp.tweet;
+				  	var tweet_id = resp.tweet_id;
+				  	
+				  	var tweet_link = 'https://twitter.com/'+resp.screen_name+'/status/'+tweet_id;
+				  	
+				  	var dttmp = (new Date());
+				  	
+				  	var to2Len = function(inp){ return ('0'+inp).slice(-2); };
+				  	var tm_str = 
+				  		dttmp.getFullYear() + '/' + to2Len((dttmp.getMonth()+1)) + '/' + to2Len(dttmp.getDate()) + ' ' + 
+				  		to2Len(dttmp.getHours()) + ':' + to2Len(dttmp.getMinutes()) + ':' + to2Len(dttmp.getSeconds());
+				  	
+				  	tweet = tweet.replace(/\n/g, '   ');
+				  	tweet = tweet.replace(/((?:https?|ftp):\/\/[-_.!~*\'()a-zA-Z0-9;\/?:@&=+$,%#]+)/g, '<a href="$1" target="_blank">$1</a>');
+				  	
+				  	var tweet_cont = $('<div style="border:1px black solid; height: 75px;"></div>');
+				  	
+				  	tweet_cont.append('<div style="width:60px; height: 75px; float:left;"><a href="'+tweet_link+'" target="_blank"><img src="' + image_url + '"/></a></div>');
+				  	tweet_cont.append('<div style="height:24px; font-size:14px;"><a href="'+tweet_link+'" target="_blank">'+user_name+'&nbsp;&nbsp;&nbsp;&nbsp;<i>('+tm_str+')</i></a></div>');
+					tweet_cont.append('<span style="font-size:11px;">'+tweet+'</span>');
+					
+				  	$('#tweet-area').prepend(tweet_cont);
+				  	
+				  	var twet_idx = 0;
+				  	$('#tweet-area > div').each(function(){
+				  		twet_idx++;
+				  		
+				  		if(twet_idx > 20){
+				  			$(this).remove();
+				  		}
+				  	});
+				  }else if(resp.data_type == 'log'){
+				  	var stat_text = $('#status-log-area').val();
+				  	stat_text = stat_text.substring(0,10000);
+				  	
+				  	var dttmp = (new Date());
+				  	
+				  	var to2Len = function(inp){ return ('0'+inp).slice(-2); };
+				  	var tm_str = 
+				  		dttmp.getFullYear() + '/' + to2Len((dttmp.getMonth()+1)) + '/' + to2Len(dttmp.getDate()) + ' ' + 
+				  		to2Len(dttmp.getHours()) + ':' + to2Len(dttmp.getMinutes()) + ':' + to2Len(dttmp.getSeconds());
+				  	
+				  	stat_text = tm_str + ' : ' + resp.message + '\r\n' + stat_text;
+				  	
+				  	$('#status-log-area').val(stat_text);
+				  
+				  }else if(resp.data_type == 'info'){
+				  	if(resp.action == 'status'){
+				  		if(resp.status['streaming']){
+				  			$('#st-status').text('接続済み');
+				  		}else{
+				  			$('#st-status').text('未接続');
+				  		}
+				  		if(resp.status['bluetooth']){
+				  			$('#bt-status').text('接続済み');
+				  		}else{
+				  			$('#bt-status').text('未接続');
+				  		}
+				  	}else if(resp.action == 'streaming_params'){
+				  		if(resp.params['follow_id']){
+				  			$('#tw-follow-id-param').text(resp.params['follow_id']);
+				  		}else{
+				  			$('#tw-follow-id-param').text('なし');
+				  		}
+				  		if(resp.params['follow_name']){
+				  			$('#tw-follow-name-param').text(resp.params['follow_name']);
+				  		}else{
+				  			$('#tw-follow-name-param').text('なし');
+				  		}
+				  		if(resp.params['track']){
+				  			$('#tw-track-param').text(resp.params['track']);
+				  		}else{
+				  			$('#tw-track-param').text('なし');
+				  		}
+				  		
+				  	}else{
+				  		if(resp.action == 'save_streaming_params'){
+					  		if(resp.status == 'OK'){
+					  			alert('Twitter検索条件の保存が完了しました。\nStreaming再起動を行って下さい。');
+					  		}else{
+					  			alert('Twitter検索条件の保存が失敗しました。');
+					  		}
+				  		}
+				  		
+				  		if(resp.action == 'connect_stream'){
+					  		if(resp.status == 'OK'){
+					  			alert('Streaming接続命令を送信しました。');
+					  		}else{
+					  			alert('Streamingに既に接続済みです。');
+					  		}
+				  		}
+				  		if(resp.action == 'disconnect_stream'){
+					  		if(resp.status == 'OK'){
+					  			alert('Streaming切断命令を送信しました。');
+					  		}else{
+					  			alert('Streaming切断命令の送信に失敗しました。');
+					  		}
+				  		}
+				  		if(resp.action == 'exit'){
+					  		if(resp.status == 'OK'){
+					  			alert('Twitter操作サーバ停止命令を送信しました。');
+					  		}else{
+					  			alert('Twitter操作サーバ停止命令の送信に失敗しました。');
+					  		}
+				  		}
+				  	}
+				  }
+				};
+
+				$('#tw-boot').click(function(){
+					if(confirm('Twitter操作サーバを起動しますか？')){
+						$.get('http://' + location.hostname + ':3000/boot_twitter_server', function(data){
+							var stat = JSON.parse(data);
+							
+							alert(stat['status']);
+						});
+					}
+				});
+				$('#tw-exit').click(function(){
+					if(confirm('Twitter操作サーバを停止しますか？')){
+						ws.send('<!exit!>');
+					}
+				});
+				
+				$('#streaming-connect').click(function(){
+					if(confirm('Twitter Streamingを接続しますか？')){
+						ws.send('<!connect_stream!>');
+					}
+				});
+				$('#streaming-disconnect').click(function(){
+					if(confirm('Twitter Streamingを切断しますか？')){
+						ws.send('<!disconnect_stream!>');
+					}
+				});
+				
+				$('#send-toggle-vk').click(function(){
+				
+					ws.send('SEND_CUSTOM_KEYS:' + JSON.stringify({
+						'send_keys': '7F'
+					}));
+				});
+				
+				$('#save-tw-params').click(function(){
+					var follow = $('#param-set-follow').val();
+					var track  = $('#param-set-track').val();
+					
+					if(follow.length == 0 && track.length == 0){
+						alert('FollowかTrackのどちらかを設定してください');
+						return;
+					}
+					
+					var params = {};
+					if(follow.length > 0){
+						params['follow'] = follow;
+					}
+					if(track.length > 0){
+						params['track'] = track;
+					}
+					ws.send('SAVE_STREAMING_PARAMS:' + JSON.stringify(params));
+				});
+			});
+		</script>
+	</head>
+	<body>
+		<strong>WebSocket接続状態：<span id="wsock-stat" style="font-size: 20px">未接続</span></strong><br>
+		
+		<div style="border: 1px black solid; width: 300px;">
+			Streamingステータス：<span id="st-status">未接続</span><br>
+			Bluetoothステータス ：<span id="bt-status">未接続</span>
+		</div>
+		Twitter検索条件：<br>
+		・Follow：<span id="tw-follow-id-param">なし</span> (<span id="tw-follow-name-param"></span>)<br>
+		・Track ：<span id="tw-track-param">なし</span>
+		<br>
+		Twitter検索条件変更：<br>
+		・Follow：<input type="text" id="param-set-follow" style="width:300px"><br>
+		・Track ：<input type="text" id="param-set-track" style="width:300px"><br>
+		<button id="save-tw-params" disabled>Twitter検索条件保存</button>
+		<br><br>
+		コントロール：<br>
+		
+		<button id="send-toggle-vk" disabled>iOS VK切り替え操作</button>
+		<button id="streaming-connect" disabled>Streaming接続</button>
+		<button id="streaming-disconnect" disabled>Streaming切断</button>
+		<button id="tw-boot">Twitter操作サーバ起動</button>
+		<button id="tw-exit" disabled>Twitter操作サーバ停止</button>
+		&nbsp;&nbsp;
+		<a href="./auth_control.html" target="_blank">認証操作</a>
+		
+		<hr/>
+		<textarea id="status-log-area" style="height:80px; width:100%; font-size:12px;"></textarea>
+		<hr/>
+		ツイート：
+		<div id="tweet-area"></div>
+	</body>
+</html>
